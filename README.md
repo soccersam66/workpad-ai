@@ -51,6 +51,38 @@ check that the questions it fills in actually match the photo — review before 
 trust it, it reads worksheets well but not perfectly, especially messy handwriting
 or dense math notation.
 
+## Exporting to Google Drive directly (optional)
+
+There are two export buttons: **Export** (plain PDF — download on a computer, native
+share sheet with "Save to Drive" on iPhone/iPad) and **Export to Google Drive**, which
+signs into your Google account right in the app and uploads the PDF straight to your
+Drive, on any device including a computer.
+
+The Drive button needs a one-time setup, done by you (this is a real Google sign-in
+integration, so it needs your own Google Cloud project — I can't create this for you):
+
+1. Go to console.cloud.google.com/apis/credentials (a free Google account is all you need)
+2. APIs & Services → Library → enable the **Google Drive API**
+3. APIs & Services → OAuth consent screen → choose **External**, fill in the required
+   fields, and add your own Google account under "Test users"
+4. APIs & Services → Credentials → **Create Credentials → OAuth client ID** →
+   Application type **Web application**
+5. Under "Authorized JavaScript origins," add your exact Workpad URL
+   (e.g. `https://workpad-ai.vercel.app`)
+6. Copy the Client ID it gives you (ends in `.apps.googleusercontent.com`)
+
+The first time you tap "Export to Google Drive" in the app, it'll ask for that Client
+ID and save it in your browser. After that, it just works — click the button, sign
+into Google once, and the PDF lands in your Drive.
+
+Two things worth knowing: since the app is unverified (you didn't submit it to Google
+for a formal review — normal for a personal project like this), Google will show an
+"unverified app" warning the first time you sign in. That's expected; click
+"Advanced" → "Go to Workpad AI (unsafe)" to proceed — it's safe because it's your own
+app talking to your own account. And the permission it asks for (`drive.file`) only
+lets it see and manage files it creates itself — it can't browse or read the rest of
+your Drive.
+
 ## Notes / limits
 
 - The AI dissection step needs an internet connection and the Gemini API to be up;
