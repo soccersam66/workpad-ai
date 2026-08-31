@@ -498,12 +498,14 @@
           // fall through to plain download if sharing itself failed
         }
       }
-      var jsPDFCtor = window.jspdf && window.jspdf.jsPDF;
       var url = URL.createObjectURL(built.blob);
       var a = document.createElement("a");
       a.href = url; a.download = built.filename;
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
       setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+      // Desktop browsers have no OS-level "share to Drive" like iOS does — it just
+      // downloaded normally. Say so, so it doesn't look like nothing happened.
+      alert("Saved \"" + built.filename + "\" to your Downloads folder.\n\nTo get it into Drive: go to drive.google.com, click New → File upload, and pick it from Downloads. (Or, if you have Google Drive set up to sync a folder on this computer, just move it there instead.)");
     }catch(err){
       alert("Couldn't build the PDF: " + (err && err.message ? err.message : "unknown error"));
     }finally{
