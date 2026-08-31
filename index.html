@@ -117,12 +117,12 @@
       <p class="hint">One per line. Type them yourself, or attach a photo below and hit "Dissect with AI" to fill this in automatically — review it after, AI reads worksheets well but not perfectly.</p>
     </div>
 
-    <div class="divider">attach a worksheet photo</div>
+    <div class="divider">attach a worksheet</div>
     <div class="file-drop" id="fileDrop">
-      <div class="ftitle">Tap to attach a photo</div>
-      <div class="fsub">A clear, well-lit photo works best</div>
+      <div class="ftitle">Tap to attach a photo or PDF</div>
+      <div class="fsub">Have a Google Doc or Word file? Export it as a PDF first (Google Docs: File → Download → PDF · Word: File → Save As → PDF), then upload that — the AI can only actually read images and PDFs, not .docx files directly.</div>
     </div>
-    <input id="fileInput" type="file" accept="image/*" />
+    <input id="fileInput" type="file" accept="image/*,application/pdf" />
     <div class="attach-list" id="attachList"></div>
 
     <button class="start-btn" id="startBtn" disabled>Start writing</button>
@@ -215,7 +215,13 @@
     row.className = "attach-row";
     var thumb = document.createElement("div");
     thumb.className = "attach-thumb";
-    var img = document.createElement("img"); img.src = attachedFile.dataUrl; thumb.appendChild(img);
+    if (attachedFile.mimeType.indexOf("image/") === 0){
+      var img = document.createElement("img"); img.src = attachedFile.dataUrl; thumb.appendChild(img);
+    } else if (attachedFile.mimeType === "application/pdf"){
+      thumb.textContent = "PDF";
+    } else {
+      thumb.textContent = "DOC";
+    }
     row.appendChild(thumb);
     var name = document.createElement("span");
     name.className = "attach-name"; name.textContent = attachedFile.name;

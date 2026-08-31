@@ -23,7 +23,7 @@ export default async function handler(req, res) {
   }
 
   const prompt =
-    "You are looking at a photo of a school assignment or worksheet. " +
+    "You are looking at a photo or PDF of a school assignment or worksheet (it may be several pages). " +
     "Identify every distinct question or problem the student needs to solve. " +
     "Return ONLY a JSON array of strings, one entry per question, in the order they appear on the page, " +
     "each a faithful transcription of that question's text (use standard notation like x^2, sqrt(x), 3/4 for math symbols you can't type literally). " +
