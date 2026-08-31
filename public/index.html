@@ -380,52 +380,134 @@
     if(line) lines.push(line);
     return lines;
   }
-  function composePageCanvas(qIndex){
-    var W=1700,H=2200;
-    var pc=document.createElement("canvas"); pc.width=W; pc.height=H;
-    var pctx=pc.getContext("2d");
-    pctx.fillStyle="#ffffff"; pctx.fillRect(0,0,W,H);
-    pctx.fillStyle="#8a93a6"; pctx.font="600 26px Archivo, sans-serif";
-    pctx.fillText(state.assignmentName.toUpperCase(), 60, 60);
-    pctx.fillStyle="#c7cdd7"; pctx.fillRect(60,78,W-120,2);
-    pctx.fillStyle="#2b57d6"; pctx.font="700 30px Archivo, sans-serif";
-    pctx.fillText("Q"+(qIndex+1)+" of "+state.questions.length, 60, 130);
-    pctx.fillStyle="#1c2333"; pctx.font="400 34px 'Source Serif 4', Georgia, serif";
-    var lines = wrapText(pctx, state.questions[qIndex], W-120);
-    var qY=178;
-    lines.forEach(function(l,i){ pctx.fillText(l,60,qY+i*44); });
-    var workTop = qY+lines.length*44+30, gridBottom=H-60;
-    pctx.strokeStyle="#e6e9ee"; pctx.lineWidth=1;
-    for(var y=workTop;y<gridBottom;y+=34){ pctx.beginPath(); pctx.moveTo(60,y); pctx.lineTo(W-60,y); pctx.stroke(); }
-    var strokes=state.strokesByQ[qIndex], workH=gridBottom-workTop, workW=W-120;
-    strokes.forEach(function(s){
-      if(s.points.length<1) return;
-      pctx.save();
-      if(s.erase){ pctx.globalCompositeOperation="destination-out"; pctx.lineWidth=s.width*3.2*2.1; }
-      else { pctx.globalCompositeOperation="source-over"; pctx.strokeStyle=s.color; pctx.lineWidth=s.width*2.1; }
-      pctx.lineCap="round"; pctx.lineJoin="round";
-      pctx.beginPath();
-      s.points.forEach(function(p,i){ var x=60+p.x*workW,y=workTop+p.y*workH; if(i===0) pctx.moveTo(x,y); else pctx.lineTo(x,y); });
-      pctx.stroke(); pctx.restore();
+  function loadImage(src){
+    return new Promise(function(resolve, reject){
+      var img = new Image();
+      img.onload = function(){ resolve(img); };
+      img.onerror = reject;
+      img.src = src;
     });
-    return pc;
   }
-  function exportPdf(){
-    try{
-      var jsPDFCtor = window.jspdf && window.jspdf.jsPDF;
-      if (!jsPDFCtor) throw new Error("PDF library failed to load");
-      var pdf = new jsPDFCtor({ unit:"pt", format:"letter" });
-      var pageW = pdf.internal.pageSize.getWidth(), pageH = pdf.internal.pageSize.getHeight();
-      state.questions.forEach(function(_, i){
-        var pageCanvas = composePageCanvas(i);
-        var imgData = pageCanvas.toDataURL("image/jpeg", 0.92);
-        if (i>0) pdf.addPage();
-        pdf.addImage(imgData, "JPEG", 0, 0, pageW, pageH);
+
+  // Packs every question as compactly as possible: each question's answer box is
+  // sized to however much ink is actually on the page (not a fixed full page each),
+  // and multiple questions share a page whenever they fit.
+  async function buildPdfPages(){
+    var W = 1700, H = 2200, MARGIN = 60, CW = W - MARGIN * 2;
+    var HEADER_H = 60, QFONT = "700 30px Archivo, sans-serif", QLINE_H = 36;
+    var MIN_INK = 70, MAX_INK = 900, GAP_AFTER = 26;
+
+    var pages = [];
+    var pc, pctx, cursorY;
+
+    function newPage(){
+      pc = document.createElement("canvas"); pc.width = W; pc.height = H;
+      pctx = pc.getContext("2d");
+      pctx.fillStyle = "#ffffff"; pctx.fillRect(0, 0, W, H);
+      pctx.fillStyle = "#8a93a6"; pctx.font = "600 20px Archivo, sans-serif";
+      pctx.fillText(state.assignmentName.toUpperCase(), MARGIN, 40);
+      pctx.fillStyle = "#c7cdd7"; pctx.fillRect(MARGIN, 50, CW, 2);
+      pages.push(pc);
+      cursorY = HEADER_H + 16;
+    }
+    newPage();
+
+    for (var qi = 0; qi < state.questions.length; qi++){
+      var label = "Q" + (qi + 1) + ".  " + state.questions[qi];
+      pctx.font = QFONT;
+      var qLines = wrapText(pctx, label, CW);
+      var qBlockH = qLines.length * QLINE_H + 6;
+      var thumbH = 0;
+
+      var strokes = state.strokesByQ[qi];
+      var minY = 1, maxY = 0;
+      strokes.forEach(function(s){ s.points.forEach(function(p){ if (p.y < minY) minY = p.y; if (p.y > maxY) maxY = p.y; }); });
+      var extent = (strokes.length && maxY > minY) ? (maxY - minY) : 0;
+      var inkPx = extent > 0 ? Math.max(MIN_INK, Math.min(MAX_INK, extent * 950 + 40)) : MIN_INK;
+
+      var blockH = qBlockH + 12 + thumbH + inkPx + GAP_AFTER;
+
+      if (cursorY + blockH > H - MARGIN) newPage();
+
+      pctx.fillStyle = "#1c2333"; pctx.font = QFONT;
+      qLines.forEach(function(l, i){ pctx.fillText(l, MARGIN, cursorY + i * QLINE_H + 22); });
+      var y2 = cursorY + qBlockH + 12;
+
+      pctx.strokeStyle = "#eef1f5"; pctx.lineWidth = 1;
+      for (var ly = y2; ly < y2 + inkPx; ly += 28){
+        pctx.beginPath(); pctx.moveTo(MARGIN, ly); pctx.lineTo(W - MARGIN, ly); pctx.stroke();
+      }
+
+      strokes.forEach(function(s){
+        if (s.points.length < 1) return;
+        pctx.save();
+        if (s.erase){ pctx.globalCompositeOperation = "destination-out"; pctx.lineWidth = s.width * 3.2 * 2.1; }
+        else { pctx.globalCompositeOperation = "source-over"; pctx.strokeStyle = s.color; pctx.lineWidth = s.width * 2.1; }
+        pctx.lineCap = "round"; pctx.lineJoin = "round";
+        pctx.beginPath();
+        s.points.forEach(function(p, i){
+          var relY = extent > 0 ? (p.y - minY) / extent : 0.5;
+          var x = MARGIN + p.x * CW;
+          var y = y2 + relY * inkPx;
+          if (i === 0) pctx.moveTo(x, y); else pctx.lineTo(x, y);
+        });
+        pctx.stroke(); pctx.restore();
       });
-      var fname = (state.assignmentName||"assignment").replace(/[^a-z0-9\-_ ]/gi,"").trim().replace(/\s+/g,"-").toLowerCase() || "assignment";
-      pdf.save(fname + ".pdf");
+
+      pctx.strokeStyle = "#d8dee9"; pctx.lineWidth = 1;
+      pctx.beginPath(); pctx.moveTo(MARGIN, y2 + inkPx + 13); pctx.lineTo(W - MARGIN, y2 + inkPx + 13); pctx.stroke();
+
+      cursorY = y2 + inkPx + GAP_AFTER;
+    }
+
+    return pages;
+  }
+
+  async function buildPdfBlob(){
+    var jsPDFCtor = window.jspdf && window.jspdf.jsPDF;
+    if (!jsPDFCtor) throw new Error("PDF library failed to load");
+    var pdf = new jsPDFCtor({ unit: "pt", format: "letter" });
+    var pageW = pdf.internal.pageSize.getWidth(), pageH = pdf.internal.pageSize.getHeight();
+    var pages = await buildPdfPages();
+    pages.forEach(function(canvas, i){
+      var imgData = canvas.toDataURL("image/jpeg", 0.92);
+      if (i > 0) pdf.addPage();
+      pdf.addImage(imgData, "JPEG", 0, 0, pageW, pageH);
+    });
+    var fname = (state.assignmentName || "assignment").replace(/[^a-z0-9\-_ ]/gi, "").trim().replace(/\s+/g, "-").toLowerCase() || "assignment";
+    return { blob: pdf.output("blob"), filename: fname + ".pdf" };
+  }
+
+  async function exportPdf(){
+    var btn = document.getElementById("exportBtn");
+    var oldLabel = btn.textContent;
+    btn.textContent = "Building…"; btn.disabled = true;
+    try{
+      var built = await buildPdfBlob();
+      var file = new File([built.blob], built.filename, { type: "application/pdf" });
+
+      // On iPad/iPhone this opens the native share sheet, where "Save to Drive"
+      // (or Files, AirDrop, etc.) shows up directly — the closest thing to a true
+      // one-tap "export to Drive" without a full Google sign-in integration.
+      if (navigator.canShare && navigator.canShare({ files: [file] })){
+        try{
+          await navigator.share({ files: [file], title: built.filename });
+          return;
+        }catch(shareErr){
+          if (shareErr && shareErr.name === "AbortError") return; // user cancelled the share sheet
+          // fall through to plain download if sharing itself failed
+        }
+      }
+      var jsPDFCtor = window.jspdf && window.jspdf.jsPDF;
+      var url = URL.createObjectURL(built.blob);
+      var a = document.createElement("a");
+      a.href = url; a.download = built.filename;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
     }catch(err){
       alert("Couldn't build the PDF: " + (err && err.message ? err.message : "unknown error"));
+    }finally{
+      btn.textContent = oldLabel; btn.disabled = false;
     }
   }
   document.getElementById("exportBtn").addEventListener("click", exportPdf);
