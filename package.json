@@ -1,0 +1,6 @@
+{
+  "name": "workpad-ai",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Workpad with AI worksheet dissection (Gemini)."
+}
